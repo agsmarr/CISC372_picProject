@@ -3,6 +3,8 @@
 #include <time.h>
 #include <string.h>
 #include <pthread.h>
+#include <omp.h>
+#include "OpenMPImage.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -58,9 +60,26 @@ uint8_t getPixelValue(Image* srcImage,int x,int y,int bit,Matrix algorithm){
 //            algorithm: The kernel matrix to use for the convolution
 //Returns: Nothing
 void convolute(Image* srcImage,Image* destImage,Matrix algorithm){
+    int rank = omp_get_thread_num();
+    int tCount = omp_get_num_threads();
+    int rows_per_thread = srcImage->height / tCount;
     int row,pix,bit,span;
+    int start_row = rank * rows_per_thread;
+    int end_row; 
+    if (rank == thread_count - 1) {
+            end_row = srcImage->height;
+        }
+        else {
+            end_row = (rank + 1) * rows_per_thread;
+        }
+    if (rank == tCount - 1) {
+        end_row = srcImage->height;
+    }
+    else {
+        end_row = (rank + 1) * rows_per_thread;
+    }
     span=srcImage->bpp*srcImage->bpp;
-    for (row=0;row<srcImage->height;row++){
+    for (row=start_row;row<end_row;row++){
         for (pix=0;pix<srcImage->width;pix++){
             for (bit=0;bit<srcImage->bpp;bit++){
                 destImage->data[Index(pix,row,srcImage->width,bit,srcImage->bpp)]=getPixelValue(srcImage,pix,row,bit,algorithm);
@@ -95,7 +114,7 @@ int main(int argc,char** argv){
     t1=time(NULL);
 
     stbi_set_flip_vertically_on_load(0); 
-    if (argc!=3) return Usage();
+    if (argc!=4) return Usage();
     char* fileName=argv[1];
     if (!strcmp(argv[1],"pic4.jpg")&&!strcmp(argv[2],"gauss")){
         printf("You have applied a gaussian filter to Gauss which has caused a tear in the time-space continum.\n");
